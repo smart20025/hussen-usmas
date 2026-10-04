@@ -340,7 +340,7 @@ td input.pr{width:100px;text-align:center;padding:8px;font-weight:800}
 
   <div class="two">
     <div class="chart-box" style="margin-bottom:22px">
-      <h3>توزيع الأرباح</h3>
+      <h3>ملخص الأرباح</h3>
       <div class="cv"><canvas id="accChart"></canvas></div>
     </div>
     <div class="card">
@@ -1004,16 +1004,19 @@ function renderAcc(){
   const sum = (k,f) => r2(pays.filter(f||(()=>true)).reduce((x,p)=>x+p[k],0));
   const total=sum('amount'), mine=sum('mine'), acad=sum('acad');
   const monthTotal=sum('amount',p=>kindOf(p)==='month'), sessTotal=sum('amount',p=>kindOf(p)==='session');
-  const bookProfit = r2(DB.sales.filter(x=>inR(x.date)).reduce((x,v)=>x+(v.sell-v.buy)*v.qty,0));
+  const bookRev   = r2(DB.sales.filter(x=>inR(x.date)).reduce((x,v)=>x+v.sell*v.qty,0));
+const bookSpent = r2(DB.purchases.filter(x=>inR(x.date)).reduce((x,p)=>x+p.buy*p.qty,0));
+const net = r2(mine + bookRev - bookSpent);
 
-  $('accKpis').innerHTML = `
-    <div class="kpi"><div class="v">${money(total)}</div><div class="l">إجمالي المدفوع</div></div>
+$('accKpis').innerHTML = `
+    <div class="kpi"><div class="v">${money(total)}</div><div class="l">إجمالي المدفوع (حصص واشتراكات)</div></div>
     <div class="kpi"><div class="v">${money(monthTotal)}</div><div class="l">اشتراكات شهرية</div></div>
     <div class="kpi"><div class="v">${money(sessTotal)}</div><div class="l">مدفوعات الحصص</div></div>
-    <div class="kpi"><div class="v">${money(mine)}</div><div class="l">نصيبك من الحسابات</div></div>
+    <div class="kpi"><div class="v">${money(mine)}</div><div class="l">نصيبك من الحصص</div></div>
     <div class="kpi"><div class="v">${money(acad)}</div><div class="l">نصيب الأكاديميات</div></div>
-    <div class="kpi"><div class="v">${money(bookProfit)}</div><div class="l">ربح الكتب والمستلزمات</div></div>
-    <div class="kpi main"><div class="v">${money(mine+bookProfit)}</div><div class="l">إجمالي أرباحك</div></div>`;
+    <div class="kpi"><div class="v">${money(bookRev)}</div><div class="l">مبيعات الكتب والمستلزمات</div></div>
+    <div class="kpi"><div class="v neg">${money(bookSpent)}</div><div class="l">مشتريات الكتب (بتتخصم)</div></div>
+    <div class="kpi main"><div class="v">${money(net)}</div><div class="l">صافي أرباحك</div></div>`;
 
   // حساب كل أكاديمية
   const by={};
@@ -1041,10 +1044,10 @@ function renderAcc(){
 
   if(typeof Chart!=='undefined'){
     Chart.defaults.font.family='Cairo';
-    mkChart('accChart',{type:'doughnut',
-      data:{labels:['نصيبك من الحسابات','نصيب الأكاديميات','ربح الكتب'],
-        datasets:[{data:[mine,acad,bookProfit],backgroundColor:['#1b5e35','#c0392b','#d4af37'],borderColor:'#fff',borderWidth:4,hoverOffset:8}]},
-      options:{maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom'}}}});
+    mkChart('accChart',{type:'bar',
+      data:{labels:['نصيبك من الحصص','مبيعات الكتب','مشتريات الكتب','صافي أرباحك'],
+        datasets:[{data:[mine,bookRev,-bookSpent,net],backgroundColor:['#1b5e35','#d4af37','#c0392b','#0f3d22'],borderRadius:8}]},
+      options:{maintainAspectRatio:false,plugins:{legend:{display:false}}}});
   }
 }
 
@@ -1056,6 +1059,7 @@ function addItem(){
   if(DB.items.some(i=>i.name===name)){ toast('الصنف ده موجود','err'); return; }
   if(buy<0||sell<0||stock<0){ toast('الأرقام مينفعش تكون بالسالب','err'); return; }
   DB.items.push({id:uid(), name, buy:buy||0, sell:sell||0, stock});
+if(stock>0) DB.purchases.push({id:uid(), date:today(), itemId:DB.items[DB.items.length-1].id, itemName:name, qty:stock, buy:buy||0});
   ['itName','itBuy','itSell'].forEach(i=>$(i).value=''); $('itStock').value=0;
   commit(); toast('تمت إضافة الصنف ✔');
 }
@@ -1131,7 +1135,7 @@ function renderShop(){
   $('shopKpis').innerHTML = `
     <div class="kpi"><div class="v">${money(revenue)}</div><div class="l">إجمالي المبيعات</div></div>
     <div class="kpi"><div class="v">${money(cost)}</div><div class="l">تكلفة اللي اتباع</div></div>
-    <div class="kpi main"><div class="v">${money(revenue-cost)}</div><div class="l">صافي ربح الكتب</div></div>
+    <div class="kpi main"><div class="v">${money(revenue-spent)}</div><div class="l">صافي الكتب (مبيعات − مشتريات)</div></div>
     <div class="kpi"><div class="v">${money(spent)}</div><div class="l">اللي اشتريت بيه</div></div>
     <div class="kpi"><div class="v">${money(stockVal)}</div><div class="l">قيمة المخزون الحالي</div></div>`;
 
