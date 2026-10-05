@@ -770,7 +770,9 @@ function renderAtt(){
   const rec = DB.att[date+'|'+ac];
   const list = DB.students.filter(s=>s.academy===ac).sort(byName);
   attSel = new Set(((rec&&rec.present)||[]).filter(id=>list.some(s=>s.id===id)));
-  $('attStatus').innerHTML = rec ? '<span class="status">✏️ الحضور ده محفوظ قبل كده — تقدر تعدله وتحفظ تاني</span>' : '';
+    $('attStatus').innerHTML = rec
+    ? `<span class="status">✏️ اتسجل حضور اليوم ده لـ ${attSel.size} من ${list.length} طالب — الطالب اللي مش مظلل بالأخضر لسه ماتسجلش، تقدر تدوس عليه وتحفظ</span>`
+    : '';
   $('attDel').style.display = rec ? '' : 'none';
   box.innerHTML = list.length ? list.map(s=>{
     const sess = billOf(s)==='session';
