@@ -928,13 +928,15 @@ function renderAnalysis(){
     const h=Math.floor(tv.length/2), d=avg(tv.slice(h))-avg(tv.slice(0,h));
     trend = d>3 ? 'في تحسن 📈' : d<-3 ? 'في تراجع 📉' : 'مستقر ➖';
   }
-  const best = evs.filter(e=>e.total!=null).sort((a,b)=>b.total-a.total)[0];
+   const best = evs.filter(e=>e.total!=null).sort((a,b)=>b.total-a.total)[0];
+  const vd = verdictOf(rate, aTot);
 
   out.innerHTML = `
   <div class="verdict">
     <b style="font-size:20px">${esc(s.name)}</b> — ${esc(acName(s.academy))} / ${lvName(s.level)}<br>
-    نسبة الحضور <b>${rate}%</b> (${present} من ${total} حصص) • المستوى العام: <b>${lvl(aTot)}</b> • الاتجاه: <b>${trend}</b>
-    ${best ? ` • أعلى درجة: <b>${best.total}</b> بتاريخ ${shortDate(best.d)}` : ''}
+    الحضور: <b>${rate}%</b> (${present} من ${total} حصص) — <b>${vd.commit}</b> • مستوى الأداء: <b>${vd.perf}</b> (متوسط ${aTot??'—'}) • الاتجاه: <b>${trend}</b>
+    ${best ? ` • أعلى درجة: <b>${best.total}</b> بتاريخ ${shortDate(best.d)}` : ''}<br>
+    💡 ${vd.note}
   </div>
   <div class="kpis">
     <div class="kpi"><div class="v">${total}</div><div class="l">الحصص المقررة</div></div>
@@ -1202,7 +1204,20 @@ function calcStats(s, mode, month){
     if(inRange(d) && DB.evals[k][s.id]) evs.push({d, ...DB.evals[k][s.id]});
   }
   evs.sort((a,b)=>a.d.localeCompare(b.d));
-
+// حكم عام: الأداء (التقييمات) منفصل عن الالتزام (الحضور) + جملة تجمعهم
+function verdictOf(rate, aTot){
+  const perf   = aTot==null ? '—' : aTot>=90?'ممتاز':aTot>=75?'جيد جداً':aTot>=60?'جيد':'يحتاج دعم';
+  const commit = rate>=90?'منتظم جداً':rate>=75?'منتظم':rate>=50?'انتظام متوسط':'غير منتظم';
+  let note;
+  if(aTot==null)                  note='لا توجد تقييمات مسجلة في هذه الفترة.';
+  else if(aTot>=75 && rate>=75)   note='طالب متميز: مستوى عالٍ وحضور منتظم.';
+  else if(aTot>=75)               note='مستواه عالٍ في الحصص التي يحضرها، لكن حضوره ضعيف والانتظام سيزيد من تقدمه.';
+  else if(aTot>=60 && rate>=75)   note='منتظم ومستواه جيد، ويحتاج إلى مزيد من التركيز ليتطور.';
+  else if(aTot>=60)               note='مستواه جيد في الحصص التي يحضرها، لكنه يحتاج إلى انتظام أكبر في الحضور.';
+  else if(rate>=75)               note='منتظم في الحضور، لكن مستواه يحتاج إلى دعم ومتابعة.';
+  else                            note='يحتاج إلى متابعة في الحضور والمستوى معاً.';
+  return {perf, commit, note};
+}
   // الحضور على أساس 4 حصص في الشهر (كل الأيام = 4 × عدد الشهور اللي فيها حصص)
   const recorded = sessions.length;
   const present  = sessions.filter(x=>x.p).length;
@@ -1268,13 +1283,14 @@ function reportHTML(s, mode, month, periodTxt){
 
   const kpi = (v,l) => `<div class="rpt-kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
   const last = st.evs.slice(-6).reverse();
+  const vd = verdictOf(st.rate, st.aTot);
   return `<section class="rpt">
     ${head}${info}
     <div class="rpt-kpis">
       ${kpi(st.total,'الحصص المقررة')}${kpi(st.present,'حضور')}${kpi(st.absent,'غياب')}${kpi(st.rate+'%','نسبة الحضور')}
-      ${kpi(st.aHw??'—','متوسط الواجب')}${kpi(st.aCls??'—','متوسط الحصة')}${kpi(st.aTot??'—','متوسط التقييم الكلي')}${kpi(st.lvl,'المستوى العام')}
+      ${kpi(st.aHw??'—','متوسط الواجب')}${kpi(st.aCls??'—','متوسط الحصة')}${kpi(st.aTot??'—','متوسط التقييم الكلي')}${kpi(vd.perf,'مستوى الأداء')}
     </div>
-    <div class="rpt-verdict">نسبة الحضور ${st.rate}% • المستوى العام: ${st.lvl} • الاتجاه: ${st.trend}</div>
+      <div class="rpt-verdict">الحضور: ${st.rate}% (${st.present} من ${st.total} حصص) — ${vd.commit} • مستوى الأداء: ${vd.perf} • الاتجاه: ${st.trend}<br>${vd.note}</div>
     <div class="rpt-charts">${imgs.map(([t,u])=>`<div class="rpt-ch"><h4>${t}</h4><img src="${u}"></div>`).join('')}</div>
     ${last.length ? `<table><thead><tr><th>التاريخ</th><th>الواجب</th><th>تقييم الحصة</th><th>التقييم الكلي</th></tr></thead><tbody>
       ${last.map(e=>`<tr><td>${shortDate(e.d)}</td><td>${e.hw??'—'}</td><td>${e.cls??'—'}</td><td><b>${e.total??'—'}</b></td></tr>`).join('')}
