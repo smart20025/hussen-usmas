@@ -289,18 +289,17 @@ td input.pr{width:100px;text-align:center;padding:8px;font-weight:800}
 <!-- ============ التقييم ============ -->
 <section id="sec-eval" class="sec">
   <div class="card">
-    <h2>⭐ تقييم الحصة (الدرجة من 100)</h2>
+    <h2>⭐ تقييم الحصة (الواجب من 60 • الحصة من 100)</h2>
     <div class="grid">
       <div><label>اليوم</label><input type="date" id="evDate" onchange="renderEval()"><div class="day" id="evDay"></div></div>
       <div><label>الأكاديمية</label><select id="evAcademy" onchange="renderEval()"></select></div>
     </div>
     <div id="evStatus"></div>
     <div class="tbl-wrap" style="margin-top:16px"><table>
-      <thead><tr><th>#</th><th>الطالب</th><th>الليفل</th><th>درجة الواجب</th><th>تقييم الحصة</th><th>التقييم الكلي خلال الحصة</th></tr></thead>
+      <thead><tr><th>#</th><th>الطالب</th><th>الليفل</th><th>درجة الواجب (من 60)</th><th>تقييم الحصة (من 100)</th></tr></thead>
       <tbody id="evBody"></tbody>
     </table></div>
     <div class="actions">
-      <button class="btn btn-green" onclick="autoTotal()">🧮 احسب الكلي تلقائياً</button>
       <button class="btn btn-gold" onclick="saveEval()">💾 حفظ التقييم</button>
       <button class="btn btn-red" id="evDel" style="display:none" onclick="delEval()">🗑 مسح تقييم اليوم</button>
     </div>
@@ -501,7 +500,7 @@ const DEF = {
   academies: [],   // {id,name}
   students: [],    // {id,name,academy,level,phone,birth,acct,billing,sessionPrice}
   att: {},         // "التاريخ|id الأكاديمية" -> {present:[ids]}
-  evals: {},       // "التاريخ|id الأكاديمية" -> {studentId:{hw,cls,total}}
+  evals: {},       // "التاريخ|id الأكاديمية" -> {studentId:{hw,cls}}
   payments: [],    // {id,date,studentId,name,acId,acName,acct,kind,amount,mine,acad,note}
   items: [         // {id,name,buy,sell,stock}
     {id:'i1',name:'كتاب',buy:0,sell:0,stock:0},
@@ -853,10 +852,20 @@ function delAtt(){
 }
 
 /* ===================== التقييم ===================== */
+// أعلى درجة لكل تقييم
+const HW_MAX = 60, CLS_MAX = 100;
+// تحويل الدرجة لنسبة مئوية (بحد أقصى 100 علشان الداتا القديمة)
+const pctOf = (v,max) => v==null ? null : Math.min(100, Math.round(v/max*1000)/10);
+// التقييم الكلي للحصة = متوسط نسبة الواجب ونسبة الحصة
+function evTotal(e){
+  const arr = [pctOf(e.hw,HW_MAX), pctOf(e.cls,CLS_MAX)].filter(x=>x!=null);
+  return arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : null;
+}
+
 function renderEval(){
   const date=$('evDate').value, ac=$('evAcademy').value, body=$('evBody');
   $('evDay').textContent = dayName(date);
-  const msg = t => { body.innerHTML = `<tr><td colspan="6" class="empty">${t}</td></tr>`; $('evStatus').innerHTML=''; $('evDel').style.display='none'; };
+  const msg = t => { body.innerHTML = `<tr><td colspan="5" class="empty">${t}</td></tr>`; $('evStatus').innerHTML=''; $('evDel').style.display='none'; };
   if(!date||!ac){ msg('اختار اليوم والأكاديمية'); return; }
   const key=date+'|'+ac;
   if(!DB.att[key]){ msg('لسه ماسجلتش حضور اليوم ده للأكاديمية دي'); return; }
@@ -866,35 +875,29 @@ function renderEval(){
   const saved = DB.evals[key];
   $('evStatus').innerHTML = saved ? '<span class="status">✏️ التقييم ده محفوظ قبل كده — عدّل أي درجة واحفظ تاني</span>' : '';
   $('evDel').style.display = saved ? '' : 'none';
-  const inp = (id,f,v) => `<input class="sc" type="number" min="0" max="100" data-id="${id}" data-f="${f}" value="${v??''}" placeholder="0-100">`;
+  // الخانة بتاخد أعلى درجة حسب نوعها (60 للواجب / 100 للحصة)
+  const inp = (id,f,v,max) => `<input class="sc" type="number" min="0" max="${max}" data-id="${id}" data-f="${f}" value="${v??''}" placeholder="0-${max}">`;
   body.innerHTML = present.map((s,i)=>{
     const e=(saved||{})[s.id]||{};
     return `<tr><td>${i+1}</td>
       <td><div class="who"><span class="av">${esc(initial(s.name))}</span><b>${esc(s.name)}</b></div></td>
       <td><span class="badge">${lvName(s.level)}</span></td>
-      <td>${inp(s.id,'hw',e.hw)}</td><td>${inp(s.id,'cls',e.cls)}</td><td>${inp(s.id,'total',e.total)}</td></tr>`;
+      <td>${inp(s.id,'hw',e.hw,HW_MAX)}</td><td>${inp(s.id,'cls',e.cls,CLS_MAX)}</td></tr>`;
   }).join('');
-}
-function autoTotal(){
-  const rows={};
-  document.querySelectorAll('#evBody input.sc').forEach(i=>{ (rows[i.dataset.id] ??= {})[i.dataset.f]=i; });
-  for(const id in rows){
-    const h=rows[id].hw.value, c=rows[id].cls.value;
-    if(h!=='' && c!=='') rows[id].total.value = Math.round((+h + +c)/2);
-  }
 }
 function saveEval(){
   const date=$('evDate').value, ac=$('evAcademy').value;
   if(!date||!ac){ toast('اختار اليوم والأكاديمية','err'); return; }
+  const MAXF = {hw:HW_MAX, cls:CLS_MAX};
   const out={}; let bad=false;
   document.querySelectorAll('#evBody input.sc').forEach(i=>{
     if(i.value==='') return;
-    const v=+i.value;
-    if(isNaN(v)||v<0||v>100){ bad=true; i.style.borderColor='var(--red)'; return; }
+    const v=+i.value, max=MAXF[i.dataset.f];
+    if(isNaN(v)||v<0||v>max){ bad=true; i.style.borderColor='var(--red)'; return; }
     i.style.borderColor='';
     (out[i.dataset.id] ??= {})[i.dataset.f]=v;
   });
-  if(bad){ toast('الدرجات لازم تكون من 0 لـ 100','err'); return; }
+  if(bad){ toast('الواجب من 0 لـ '+HW_MAX+' والحصة من 0 لـ '+CLS_MAX,'err'); return; }
   DB.evals[date+'|'+ac]=out; save(); renderEval(); toast('تم حفظ التقييم ✔');
 }
 function delEval(){
@@ -922,40 +925,39 @@ function renderAnalysis(){
   const s=stuById(id); if(!s) return;
   const mode=document.querySelector('input[name=anMode]:checked').value, month=$('anMonth').value;
   // الحضور على 4 حصص في الشهر، والتقييمات على الحصص اللي حضرها بس
-   const {evs, recorded, total, present, absent, rate, aHw, aCls, aTot, aAtt} = calcStats(s, mode, month);
+  const {evs, recorded, total, present, absent, rate, aHw, aCls, aHwP, aClsP, aTot, aAtt} = calcStats(s, mode, month);
 
   if(!recorded && !evs.length){ out.innerHTML='<div class="card empty">مفيش بيانات للطالب ده في الفترة دي</div>'; return; }
 
-  const lvl = v => v==null ? '—' : v>=90?'ممتاز 🌟':v>=75?'جيد جداً 👏':v>=60?'جيد 👍':'محتاج متابعة ⚠️';
   let trend='—';
   const tv=evs.map(e=>e.total).filter(v=>v!=null);
   if(tv.length>=4){
     const h=Math.floor(tv.length/2), d=avg(tv.slice(h))-avg(tv.slice(0,h));
     trend = d>3 ? 'في تحسن 📈' : d<-3 ? 'في تراجع 📉' : 'مستقر ➖';
   }
-   const best = evs.filter(e=>e.total!=null).sort((a,b)=>b.total-a.total)[0];
-  const vd = verdictOf(rate, aTot);
+  const best = evs.filter(e=>e.total!=null).sort((a,b)=>b.total-a.total)[0];
+  const vd = verdictOf(rate, aTot, aAtt);
 
   out.innerHTML = `
   <div class="verdict">
     <b style="font-size:20px">${esc(s.name)}</b> — ${esc(acName(s.academy))} / ${lvName(s.level)}<br>
-       الحضور: <b>${rate}%</b> (${present} من ${total} حصص) — <b>${vd.commit}</b> • مستوى الأداء: <b>${vd.perf}</b> (متوسط ${aTot??'—'} على ${total} حصص${aAtt!=null ? '، وفي الحصص اللي حضرها '+aAtt : ''}) • الاتجاه: <b>${trend}</b>
-    ${best ? ` • أعلى درجة: <b>${best.total}</b> بتاريخ ${shortDate(best.d)}` : ''}<br>
+    الحضور: <b>${rate}%</b> (${present} من ${total} حصص) — <b>${vd.commit}</b> • مستوى الأداء: <b>${vd.perf}</b> (متوسط ${aTot??'—'}% على ${total} حصص${aAtt!=null ? '، وفي الحصص اللي حضرها '+aAtt+'%' : ''}) • الاتجاه: <b>${trend}</b>
+    ${best ? ` • أعلى تقييم: <b>${best.total}%</b> بتاريخ ${shortDate(best.d)}` : ''}<br>
     💡 ${vd.note}
   </div>
   <div class="kpis">
     <div class="kpi"><div class="v">${total}</div><div class="l">الحصص المقررة</div></div>
     <div class="kpi"><div class="v">${present}</div><div class="l">حضور</div></div>
     <div class="kpi"><div class="v">${absent}</div><div class="l">غياب</div></div>
-    <div class="kpi"><div class="v">${aHw??'—'}</div><div class="l">متوسط الواجب</div></div>
-    <div class="kpi"><div class="v">${aCls??'—'}</div><div class="l">متوسط الحصة</div></div>
-    <div class="kpi"><div class="v">${aTot??'—'}</div><div class="l">متوسط التقييم الكلي</div></div>
+    <div class="kpi"><div class="v">${aHw!=null ? aHw+' / '+HW_MAX : '—'}</div><div class="l">متوسط الواجب</div></div>
+    <div class="kpi"><div class="v">${aCls!=null ? aCls+' / '+CLS_MAX : '—'}</div><div class="l">متوسط الحصة</div></div>
+    <div class="kpi"><div class="v">${aTot!=null ? aTot+'%' : '—'}</div><div class="l">متوسط التقييم الكلي</div></div>
   </div>
   <div class="charts">
     <div class="chart-box"><h3>الحضور والغياب</h3><div class="cv"><canvas id="c1"></canvas></div></div>
-    <div class="chart-box"><h3>تطور التقييم الكلي</h3><div class="cv"><canvas id="c2"></canvas></div></div>
-    <div class="chart-box"><h3>الواجب مقابل تقييم الحصة</h3><div class="cv"><canvas id="c3"></canvas></div></div>
-        <div class="chart-box"><h3>ملخص الأداء</h3><div style="text-align:center"><img src="${gaugeImg(overallOf(rate,aHw,aCls,aTot))}" style="width:100%;max-width:420px">${axesHTML(rate,aHw,aCls,aTot)}</div></div>
+    <div class="chart-box"><h3>تطور التقييم الكلي (%)</h3><div class="cv"><canvas id="c2"></canvas></div></div>
+    <div class="chart-box"><h3>الواجب مقابل تقييم الحصة (%)</h3><div class="cv"><canvas id="c3"></canvas></div></div>
+    <div class="chart-box"><h3>ملخص الأداء</h3><div style="text-align:center"><img src="${gaugeImg(overallOf(rate,aHwP,aClsP,aTot))}" style="width:100%;max-width:420px">${axesHTML(rate,aHwP,aClsP,aTot)}</div></div>
   </div>`;
 
   Chart.defaults.font.family='Cairo';
@@ -972,13 +974,12 @@ function renderAnalysis(){
     data:{labels,datasets:[{label:'التقييم الكلي',data:evs.map(e=>e.total??null),borderColor:GOLD,backgroundColor:g,fill:true,tension:.4,borderWidth:3,pointRadius:6,pointBackgroundColor:GREEN,pointBorderColor:'#fff',pointBorderWidth:2,spanGaps:true}]},
     options:{maintainAspectRatio:false,scales:{y:{min:0,max:100}},plugins:{legend:{display:false}}}});
 
+  // الواجب والحصة بالنسبة المئوية علشان المقارنة تبقى عادلة (الواجب من 60 والحصة من 100)
   mkChart('c3',{type:'bar',
     data:{labels,datasets:[
-      {label:'الواجب',data:evs.map(e=>e.hw??null),backgroundColor:GREEN,borderRadius:8},
-      {label:'تقييم الحصة',data:evs.map(e=>e.cls??null),backgroundColor:GOLD,borderRadius:8}]},
+      {label:'الواجب (% من '+HW_MAX+')',data:evs.map(e=>e.hwP??null),backgroundColor:GREEN,borderRadius:8},
+      {label:'تقييم الحصة (% من '+CLS_MAX+')',data:evs.map(e=>e.clsP??null),backgroundColor:GOLD,borderRadius:8}]},
     options:{maintainAspectRatio:false,scales:{y:{min:0,max:100}},plugins:{legend:{position:'bottom'}}}});
-
-
 }
 // جدول بكل طلاب الأكاديمية المختارة (لما متكونش اخترت طالب)
 function renderAcademyOverview(){
@@ -996,7 +997,7 @@ function renderAcademyOverview(){
         return `<tr><td>${i+1}</td>
           <td><div class="who"><span class="av">${esc(initial(s.name))}</span><b>${esc(s.name)}</b></div></td>
           <td><span class="badge">${lvName(s.level)}</span></td>
-          <td>${st.total}</td><td>${st.present}</td><td><b>${st.rate}%</b></td><td><b>${st.aTot??'—'}</b></td>
+          <td>${st.total}</td><td>${st.present}</td><td><b>${st.rate}%</b></td><td><b>${st.aTot!=null ? st.aTot+'%' : '—'}</b></td>
           <td><button class="btn btn-green btn-sm" onclick="openStudentAnalysis('${s.id}')">عرض التحليل</button></td></tr>`;
       }).join('')}</tbody>
     </table></div></div>`;
@@ -1201,10 +1202,13 @@ function calcStats(s, mode, month){
     if(ac===s.academy || pres.includes(s.id)) sessions.push({d, p:pres.includes(s.id)});
   }
   sessions.sort((a,b)=>a.d.localeCompare(b.d));
+
+  // التقييمات: بنحفظ الدرجة الخام + النسبة المئوية + الكلي المحسوب
   const evs=[];
   for(const k in DB.evals){
-    const d=k.slice(0,k.indexOf('|'));
-    if(inRange(d) && DB.evals[k][s.id]) evs.push({d, ...DB.evals[k][s.id]});
+    const d=k.slice(0,k.indexOf('|')), e=DB.evals[k][s.id];
+    if(inRange(d) && e) evs.push({d, hw:e.hw, cls:e.cls,
+      hwP:pctOf(e.hw,HW_MAX), clsP:pctOf(e.cls,CLS_MAX), total:evTotal(e)});
   }
   evs.sort((a,b)=>a.d.localeCompare(b.d));
 
@@ -1216,15 +1220,17 @@ function calcStats(s, mode, month){
   const absent   = Math.max(0, total - present);
   const rate     = Math.min(100, Math.round(present/total*100));
 
-  // التقييمات: مجموع الدرجات ÷ الحصص المقررة (الحصة اللي غاب عنها = صفر)
-  // ولو اتقيّم في حصص أكتر من المقررة بنقسم على عددها علشان المتوسط ما يعديش 100
-  const avgOver = f => {
+  // متوسط النسب ÷ الحصص المقررة (الحصة اللي غاب عنها = صفر) — نفس الطريقة القديمة
+  const avgOverP = f => {
     const vals = evs.map(e=>e[f]).filter(v=>v!=null);
-    if(!vals.length) return null; // مفيش تقييم مسجل أصلاً
+    if(!vals.length) return null;
     return Math.round(vals.reduce((a,b)=>a+b,0) / Math.max(total, vals.length) * 10) / 10;
   };
-  const aHw=avgOver('hw'), aCls=avgOver('cls'), aTot=avgOver('total');
-  // متوسطه في الحصص اللي حضرها بس (للمعلومية)
+  const aHwP=avgOverP('hwP'), aClsP=avgOverP('clsP'), aTot=avgOverP('total');
+  // المتوسط بالدرجة الخام للعرض (الواجب من 60 / الحصة من 100)
+  const aHw  = aHwP==null ? null : Math.round(aHwP*HW_MAX/100*10)/10;
+  const aCls = aClsP;
+  // متوسطه في الحصص اللي حضرها بس
   const aAtt = avg(evs.map(e=>e.total).filter(v=>v!=null));
 
   const lvl = aTot==null ? '—' : aTot>=90?'ممتاز':aTot>=75?'جيد جداً':aTot>=60?'جيد':'محتاج متابعة';
@@ -1234,7 +1240,7 @@ function calcStats(s, mode, month){
     const h=Math.floor(tv.length/2), d=avg(tv.slice(h))-avg(tv.slice(0,h));
     trend = d>3 ? 'في تحسن' : d<-3 ? 'في تراجع' : 'مستقر';
   }
-  return {sessions, evs, recorded, total, present, absent, rate, aHw, aCls, aTot, aAtt, lvl, trend};
+  return {sessions, evs, recorded, total, present, absent, rate, aHw, aCls, aHwP, aClsP, aTot, aAtt, lvl, trend};
 }
 
 // حكم عام: الأداء (المتوسط العام) + الالتزام (الحضور) + جملة تجمعهم
@@ -1317,21 +1323,21 @@ function reportHTML(s, mode, month, periodTxt){
 
   const GOLD='#d4af37', GREEN='#1b5e35', RED='#c0392b';
   const labels = st.evs.map(e=>shortDate(e.d));
-  const overall = overallOf(st.rate, st.aHw, st.aCls, st.aTot);
+  const overall = overallOf(st.rate, st.aHwP, st.aClsP, st.aTot);
   const imgs = [
     ['الحضور والغياب', chartImg({type:'doughnut',
       data:{labels:['حاضر','غائب'],datasets:[{data:[st.present,st.absent],backgroundColor:[GREEN,RED],borderColor:'#fff',borderWidth:3}]},
       options:{cutout:'62%',plugins:{legend:{position:'bottom'}}}})],
-    ['تطور التقييم الكلي', chartImg({type:'line',
+    ['تطور التقييم الكلي (%)', chartImg({type:'line',
       data:{labels,datasets:[{label:'التقييم الكلي',data:st.evs.map(e=>e.total??null),borderColor:GOLD,backgroundColor:'rgba(212,175,55,.2)',fill:true,tension:.4,borderWidth:3,pointRadius:5,pointBackgroundColor:GREEN,spanGaps:true}]},
       options:{scales:{y:{min:0,max:100}},plugins:{legend:{display:false}}}})],
-    ['الواجب مقابل تقييم الحصة', chartImg({type:'bar',
+    ['الواجب مقابل تقييم الحصة (%)', chartImg({type:'bar',
       data:{labels,datasets:[
-        {label:'الواجب',data:st.evs.map(e=>e.hw??null),backgroundColor:GREEN,borderRadius:6},
-        {label:'تقييم الحصة',data:st.evs.map(e=>e.cls??null),backgroundColor:GOLD,borderRadius:6}]},
+        {label:'الواجب (من '+HW_MAX+')',data:st.evs.map(e=>e.hwP??null),backgroundColor:GREEN,borderRadius:6},
+        {label:'تقييم الحصة (من '+CLS_MAX+')',data:st.evs.map(e=>e.clsP??null),backgroundColor:GOLD,borderRadius:6}]},
       options:{scales:{y:{min:0,max:100}},plugins:{legend:{position:'bottom'}}}})],
     // مؤشر الأداء العام + قيمة كل محور تحته
-    ['ملخص الأداء', gaugeImg(overall), axesHTML(st.rate, st.aHw, st.aCls, st.aTot)]
+    ['ملخص الأداء', gaugeImg(overall), axesHTML(st.rate, st.aHwP, st.aClsP, st.aTot)]
   ];
 
   const kpi = (v,l) => `<div class="rpt-kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
@@ -1341,12 +1347,12 @@ function reportHTML(s, mode, month, periodTxt){
     ${head}${info}
     <div class="rpt-kpis">
       ${kpi(st.total,'الحصص المقررة')}${kpi(st.present,'حضور')}${kpi(st.absent,'غياب')}${kpi(st.rate+'%','نسبة الحضور')}
-      ${kpi(st.aHw??'—','متوسط الواجب')}${kpi(st.aCls??'—','متوسط الحصة')}${kpi(st.aTot??'—','متوسط التقييم الكلي')}${kpi(vd.perf,'مستوى الأداء')}
+      ${kpi(st.aHw!=null ? st.aHw+' / '+HW_MAX : '—','متوسط الواجب')}${kpi(st.aCls!=null ? st.aCls+' / '+CLS_MAX : '—','متوسط الحصة')}${kpi(st.aTot!=null ? st.aTot+'%' : '—','متوسط التقييم الكلي')}${kpi(vd.perf,'مستوى الأداء')}
     </div>
-      <div class="rpt-verdict">الحضور: ${st.rate}% (${st.present} من ${st.total} حصص) — ${vd.commit} • مستوى الأداء: ${vd.perf} (متوسط ${st.aTot??'—'} على ${st.total} حصص${st.aAtt!=null ? '، وفي الحصص التي حضرها '+st.aAtt : ''}) • الاتجاه: ${st.trend}<br>${vd.note}</div>
+    <div class="rpt-verdict">الحضور: ${st.rate}% (${st.present} من ${st.total} حصص) — ${vd.commit} • مستوى الأداء: ${vd.perf} (متوسط ${st.aTot??'—'}% على ${st.total} حصص${st.aAtt!=null ? '، وفي الحصص التي حضرها '+st.aAtt+'%' : ''}) • الاتجاه: ${st.trend}<br>${vd.note}</div>
     <div class="rpt-charts">${imgs.map(([t,u,x])=>`<div class="rpt-ch"><h4>${t}</h4><img src="${u}">${x||''}</div>`).join('')}</div>
-    ${last.length ? `<table><thead><tr><th>التاريخ</th><th>الواجب</th><th>تقييم الحصة</th><th>التقييم الكلي</th></tr></thead><tbody>
-      ${last.map(e=>`<tr><td>${shortDate(e.d)}</td><td>${e.hw??'—'}</td><td>${e.cls??'—'}</td><td><b>${e.total??'—'}</b></td></tr>`).join('')}
+    ${last.length ? `<table><thead><tr><th>التاريخ</th><th>الواجب (من ${HW_MAX})</th><th>تقييم الحصة (من ${CLS_MAX})</th><th>التقييم الكلي</th></tr></thead><tbody>
+      ${last.map(e=>`<tr><td>${shortDate(e.d)}</td><td>${e.hw??'—'}</td><td>${e.cls??'—'}</td><td><b>${e.total!=null ? e.total+'%' : '—'}</b></td></tr>`).join('')}
     </tbody></table>` : ''}
   </section>`;
 }
