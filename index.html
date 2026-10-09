@@ -291,8 +291,8 @@ td input.pr{width:100px;text-align:center;padding:8px;font-weight:800}
   <div class="card">
     <h2>⭐ تقييم الحصة (الواجب من 60 • الحصة من 100)</h2>
     <div class="grid">
-      <div><label>اليوم</label><input type="date" id="evDate" onchange="renderEval()"><div class="day" id="evDay"></div></div>
-      <div><label>الأكاديمية</label><select id="evAcademy" onchange="renderEval()"></select></div>
+      <div><label>الأكاديمية</label><select id="evAcademy" onchange="fillEvDates();renderEval()"></select></div>
+      <div><label>اليوم (أيام الحضور المسجلة بس)</label><select id="evDate" onchange="renderEval()"></select><div class="day" id="evDay"></div></div>
     </div>
     <div id="evStatus"></div>
     <div class="tbl-wrap" style="margin-top:16px"><table>
@@ -579,7 +579,7 @@ function showTab(t){
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
   $('sec-'+t).classList.add('active');
   if(t==='att') renderAtt();
-  if(t==='eval') renderEval();
+  if(t==='eval'){ fillEvDates(); renderEval(); }
   if(t==='an') renderAnalysis();
   if(t==='acc') renderAcc();
   if(t==='shop') renderShop();
@@ -603,7 +603,7 @@ function fillSelects(){
   keep('saleItem', itOpts);
 }
 function refreshAll(){
-  fillSelects(); renderAcList(); renderStudents(); renderAtt(); renderEval(); fillAnStudents();
+  fillSelects(); renderAcList(); renderStudents(); renderAtt(); fillEvDates(); renderEval(); fillAnStudents();
   renderAcc(); renderShop(); calcPrev(); onSaleItem(true);
   if($('sec-an').classList.contains('active')) renderAnalysis();
 }
@@ -862,11 +862,27 @@ function evTotal(e){
   return arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : null;
 }
 
+// قائمة أيام التقييم: بس الأيام اللي اتسجل فيها حضور للأكاديمية المختارة
+function fillEvDates(){
+  const ac=$('evAcademy').value, el=$('evDate'), old=el.value;
+  if(!ac){ el.innerHTML='<option value="">-- اختار الأكاديمية الأول --</option>'; return; }
+  const dates = Object.keys(DB.att)
+    .filter(k => k.endsWith('|'+ac) && (DB.att[k].present||[]).length)
+    .map(k => k.slice(0,k.indexOf('|')))
+    .sort((a,b)=>b.localeCompare(a));            // الأحدث فوق
+  if(!dates.length){ el.innerHTML='<option value="">مفيش حضور متسجل للأكاديمية دي</option>'; return; }
+  const isDone = d => { const e=DB.evals[d+'|'+ac]; return !!(e && Object.keys(e).length); };
+  el.innerHTML = dates.map(d =>
+    `<option value="${d}">${isDone(d)?'✅':'⏳'} ${dayName(d)} ${isDone(d)?'(متقيّم)':'(لسه ماتقيّمش)'}</option>`).join('');
+  // يحافظ على اليوم المختار، وإلا يفتح على أحدث يوم لسه ماتقيّمش
+  el.value = dates.includes(old) ? old : (dates.find(d=>!isDone(d)) || dates[0]);
+}
+
 function renderEval(){
   const date=$('evDate').value, ac=$('evAcademy').value, body=$('evBody');
   $('evDay').textContent = dayName(date);
   const msg = t => { body.innerHTML = `<tr><td colspan="5" class="empty">${t}</td></tr>`; $('evStatus').innerHTML=''; $('evDel').style.display='none'; };
-  if(!date||!ac){ msg('اختار اليوم والأكاديمية'); return; }
+  if(!date||!ac){ msg('اختار الأكاديمية واليوم'); return; }
   const key=date+'|'+ac;
   if(!DB.att[key]){ msg('لسه ماسجلتش حضور اليوم ده للأكاديمية دي'); return; }
   // الحاضرين فقط
@@ -887,7 +903,7 @@ function renderEval(){
 }
 function saveEval(){
   const date=$('evDate').value, ac=$('evAcademy').value;
-  if(!date||!ac){ toast('اختار اليوم والأكاديمية','err'); return; }
+  if(!date||!ac){ toast('اختار الأكاديمية واليوم','err'); return; }
   const MAXF = {hw:HW_MAX, cls:CLS_MAX};
   const out={}; let bad=false;
   document.querySelectorAll('#evBody input.sc').forEach(i=>{
@@ -898,13 +914,13 @@ function saveEval(){
     (out[i.dataset.id] ??= {})[i.dataset.f]=v;
   });
   if(bad){ toast('الواجب من 0 لـ '+HW_MAX+' والحصة من 0 لـ '+CLS_MAX,'err'); return; }
-  DB.evals[date+'|'+ac]=out; save(); renderEval(); toast('تم حفظ التقييم ✔');
+  DB.evals[date+'|'+ac]=out; save(); fillEvDates(); renderEval(); toast('تم حفظ التقييم ✔');
 }
 function delEval(){
   const key=$('evDate').value+'|'+$('evAcademy').value;
   if(!DB.evals[key]) return;
   if(!confirm('مسح تقييم اليوم ده؟')) return;
-  delete DB.evals[key]; save(); renderEval(); toast('تم المسح');
+  delete DB.evals[key]; save(); fillEvDates(); renderEval(); toast('تم المسح');
 }
 
 /* ===================== التحليل ===================== */
@@ -1407,7 +1423,7 @@ async function exportAllPDF(){
   }
 }
 /* ===================== التشغيل ===================== */
-['attDate','evDate','saleDate'].forEach(i=>$(i).value=today());
+['attDate','saleDate'].forEach(i=>$(i).value=today());
 ['anMonth','accMonth','shopMonth'].forEach(i=>$(i).value=today().slice(0,7));
 $('rJoin').value = today();
 onBilling();
