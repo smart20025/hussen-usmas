@@ -93,7 +93,11 @@ document.querySelector('main').insertAdjacentHTML('beforeend',`
 <div><label>عنوان الشهادة</label><input id="ctTitle" dir="ltr" value="Certificate of Appreciation"></div></div>
 <div style="margin-top:12px"><label>النص (بالإنجليزي)</label><textarea id="ctText" rows="4" dir="ltr" style="width:100%;padding:12px;border:2px solid #e8e3cf;border-radius:12px;font-family:inherit">This certificate is proudly presented in recognition of outstanding performance, dedication, and continuous improvement in the Mental Arithmetic Course.</textarea></div>
 <div class="actions"><button class="btn btn-gold" onclick="ctPDF()">📄 تحميل PDF</button></div></div>
-<div class="card cwrap"><div id="cert" class="cert"></div></div></section>`);
+<div class="card cwrap"><div id="cert" class="cert"></div></div><div class="card"><h2>🗂 شهادات لأكثر من طالب <span class="badge" id="cbN">0</span></h2><div class="hint" style="margin:-6px 0 12px">بتستخدم العنوان والنص اللي فوق لكل الطلاب، والاسم بيتحط لكل طالب تلقائي بالإنجليزي. ملف PDF واحد، شهادة في كل صفحة.</div>
+<div class="grid"><div><label>الأكاديمية</label><select id="cbAc"></select></div></div>
+<div class="actions"><button class="btn btn-green" onclick="cbAll(true)">تحديد الكل</button><button class="btn btn-light" onclick="cbAll(false)">إلغاء الكل</button></div>
+<div id="cbList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin-top:14px"></div>
+<div class="actions"><button class="btn btn-gold" onclick="cbPDF()">📄 تصدير الشهادات PDF</button></div></div></section>`);
 $('rPhone').closest('div').insertAdjacentHTML('afterend','<div><label>صورة الطالب (اختياري — بتتضغط تلقائي)</label><input id="rPhoto" type="file" accept="image/*"><img id="rPhPrev" style="display:none;width:64px;height:80px;object-fit:cover;border-radius:8px;margin-top:6px;border:2px solid var(--gold)"></div>');
 
 /* ===== أدوات ===== */
@@ -132,7 +136,7 @@ renderStudents=function(){_rs();const q=$('searchBox').value.trim(),ac=$('filter
 function fillSel(){const acs='<option value="">كل الأكاديميات</option>'+DB.academies.slice().sort(byName).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');
   ['idStu','flStu','ctStu'].forEach(i=>{const a=$(i+'Ac'),av=a.value;a.innerHTML=acs;if(DB.academies.some(x=>x.id===av))a.value=av;
     const e=$(i),v=e.value,l=DB.students.filter(s=>!a.value||s.academy===a.value).sort(byName);
-    e.innerHTML='<option value="">-- اختر الطالب ('+l.length+') --</option>'+l.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');if(l.some(s=>s.id===v))e.value=v});const ba=$('bkAc'),bv=ba.value;ba.innerHTML=acs;if(DB.academies.some(x=>x.id===bv))ba.value=bv;renderBk()}
+    e.innerHTML='<option value="">-- اختر الطالب ('+l.length+') --</option>'+l.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');if(l.some(s=>s.id===v))e.value=v});const ba=$('bkAc'),bv=ba.value;ba.innerHTML=acs;if(DB.academies.some(x=>x.id===bv))ba.value=bv;renderBk();const ca=$('cbAc'),cv=ca.value;ca.innerHTML=acs;if(DB.academies.some(x=>x.id===cv))ca.value=cv;renderCb()}
 const frontHTML=(s,en)=>{const p=ph(s);return `<div class="lg"><img src="${LG()}" onerror="this.style.display='none'"><b>UC Math<br>For Elites<small>Mental Arithmetic Course</small></b></div>
   <div class="ph" style="${p?`background-image:url(${p})`:''}">${p?'':esc(en.charAt(0))}</div>
   <div class="nm">${esc(en)}</div><div class="mt">Level: <span>${s.level}</span><br>Joined: <span>${esc(s.join||'—')}</span></div>
@@ -188,14 +192,26 @@ window.flWA=()=>{const s=S('flStu');if(!s)return toast('اختار الطالب'
   wa(s.id,`أهلاً، ملخص أداء ${s.name} في UC Math For Elites:\nالحضور: ${st.rate}%\nمتوسط التقييم: ${st.aTot??'—'}${st.aTot!=null?'%':''}\n${verdictOf(st.rate,st.aTot,st.aAtt).note}`)};
 
 /* ===== الشهادة ===== */
-function renderCert(){const g=i=>esc($(i).value);
-  $('cert').innerHTML=`<img class="wm" src="${LG()}" onerror="this.style.display='none'"><div class="fr"></div><div class="fr2"></div>
+const certHTML=nm=>{const g=i=>esc($(i).value);return `<img class="wm" src="${LG()}" onerror="this.style.display='none'"><div class="fr"></div><div class="fr2"></div>
   <div class="tg"></div><div class="tv"></div><div class="bg2"></div><div class="bv"></div>
   <img class="lg1" src="${LG()}" onerror="this.style.display='none'">
   <div class="c"><div style="display:flex;flex-direction:column;align-items:center"><div class="br">UC MATH FOR ELITES</div><h1>${g('ctTitle')}</h1></div>
-  <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div class="dv">✦</div><div class="pp">THIS CERTIFICATE IS PROUDLY PRESENTED TO</div><div class="n">${g('ctName')||'Student Name'}</div></div>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div class="dv">✦</div><div class="pp">THIS CERTIFICATE IS PROUDLY PRESENTED TO</div><div class="n">${esc(nm)||'Student Name'}</div></div>
   <div class="t">${g('ctText')}</div>
-  <div class="sg"><div class="b1">Date<b>${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</b></div><img class="l2" src="logo2.png" onerror="this.style.visibility='hidden'"><div class="b1">Instructor<b>Hussen El-Wakeel</b></div></div></div>`}
+  <div class="sg"><div class="b1">Date<b>${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</b></div><img class="l2" src="logo2.png" onerror="this.style.visibility='hidden'"><div class="b1">Instructor<b>Hussen El-Wakeel</b></div></div></div>`};
+function renderCert(){$('cert').innerHTML=certHTML($('ctName').value)}
+const cbSel=new Set();
+const updCb=()=>$('cbN').textContent=[...cbSel].filter(id=>stuById(id)).length;
+function renderCb(){const a=$('cbAc').value,l=DB.students.filter(s=>!a||s.academy===a).sort(byName);
+  $('cbList').innerHTML=l.map(s=>`<label class="bk"><input type="checkbox" ${cbSel.has(s.id)?'checked':''} onchange="cbT('${s.id}',this.checked)"> ${esc(s.name)}</label>`).join('')||'<div class="empty">مفيش طلاب</div>';updCb()}
+window.cbT=(id,c)=>{c?cbSel.add(id):cbSel.delete(id);updCb()};
+window.cbAll=on=>{const a=$('cbAc').value;DB.students.filter(s=>!a||s.academy===a).forEach(s=>on?cbSel.add(s.id):cbSel.delete(s.id));renderCb()};
+window.cbPDF=async()=>{const list=[...cbSel].map(stuById).filter(Boolean).sort(byName);if(!list.length)return toast('اختار طلاب الأول','err');
+  const {jsPDF}=window.jspdf,p=new jsPDF({unit:'mm',format:'a4',orientation:'l'}),st=document.createElement('div');
+  st.style.cssText='position:fixed;left:-9999px;top:0';document.body.appendChild(st);
+  try{for(let i=0;i<list.length;i++){toast('جاري تجهيز '+(i+1)+' / '+list.length);const d=document.createElement('div');d.className='cert';d.innerHTML=certHTML(fb(list[i]));st.appendChild(d);
+    const c=await snap(d,3);d.remove();if(i)p.addPage();p.addImage(c.toDataURL('image/jpeg',.9),'JPEG',0,0,297,210)}
+    p.save('Certificates.pdf');toast('تم تصدير '+list.length+' شهادة ✔')}finally{st.remove()}};
 $('ctStu').onchange=()=>{const s=S('ctStu');if(s)$('ctName').value=fb(s);renderCert()};
 ['ctName','ctTitle','ctText'].forEach(i=>$(i).oninput=renderCert);
 window.ctPDF=async()=>{const {jsPDF}=window.jspdf,p=new jsPDF({unit:'mm',format:'a4',orientation:'l'});
@@ -211,6 +227,6 @@ const _ra2=refreshAll;refreshAll=function(){_ra2();fillSel();renderId();renderFi
 const _st=showTab;showTab=function(t){_st(t);if(t==='id')renderId();if(t==='file')renderFile();if(t==='cert')renderCert()};
 $('flStu').onchange=renderFile;
 ['idStu','flStu','ctStu'].forEach(i=>$(i+'Ac').onchange=()=>{fillSel();$(i).dispatchEvent(new Event('change'))});
-$('bkAc').onchange=renderBk;
+$('bkAc').onchange=renderBk;$('cbAc').onchange=renderCb;
 fillSel();renderCert();
 })();
