@@ -93,7 +93,7 @@ document.querySelector('main').insertAdjacentHTML('beforeend',`
 <div><label>الاسم على الشهادة</label><input id="ctName" dir="ltr"></div>
 <div><label>عنوان الشهادة</label><input id="ctTitle" dir="ltr" value="Certificate of Appreciation"></div></div>
 <div style="margin-top:12px"><label>النص (بالإنجليزي)</label><textarea id="ctText" rows="4" dir="ltr" style="width:100%;padding:12px;border:2px solid #e8e3cf;border-radius:12px;font-family:inherit">This certificate is proudly presented in recognition of outstanding performance, dedication, and continuous improvement in the Mental Arithmetic Course.</textarea></div>
-<div class="actions"><button class="btn btn-gold" onclick="ctPDF()">📄 تحميل PDF</button></div></div>
+<div class="actions"><button class="btn btn-gold" onclick="ctPDF()">📄 تحميل PDF</button><button class="btn btn-sm" style="background:#25d366;color:#fff;padding:11px 20px;font-size:14px" onclick="ctWA()">💬 إرسال واتساب</button></div></div>
 <div class="card cwrap"><div id="cert" class="cert"></div></div><div class="card"><h2>🗂 شهادات لأكثر من طالب <span class="badge" id="cbN">0</span></h2><div class="hint" style="margin:-6px 0 12px">بتستخدم العنوان والنص اللي فوق لكل الطلاب، والاسم بيتحط لكل طالب تلقائي بالإنجليزي. ملف PDF واحد، شهادة في كل صفحة.</div>
 <div class="grid"><div><label>الأكاديمية</label><select id="cbAc"></select></div></div>
 <div class="actions"><button class="btn btn-green" onclick="cbAll(true)">تحديد الكل</button><button class="btn btn-light" onclick="cbAll(false)">إلغاء الكل</button></div>
@@ -222,7 +222,27 @@ window.ctPDF=async()=>{const {jsPDF}=window.jspdf,p=new jsPDF({unit:'mm',format:
 /* ===== التحليل: صورة + واتساب فوق الملخص ===== */
 const _ra=renderAnalysis;
 renderAnalysis=function(){_ra();const v=document.querySelector('#anOut .verdict'),id=$('anStudent').value;if(!v||!id)return;const s=stuById(id),p=ph(s);
-  v.innerHTML=(p?`<img class="ap" src="${p}">`:'')+`<div class="vt">${v.innerHTML}<div style="margin-top:8px"><button class="btn btn-sm" style="background:#25d366;color:#fff" onclick="wa('${id}',document.querySelector('#anOut .verdict .vt').innerText.slice(0,600))">💬 إرسال التحليل واتساب</button></div></div>`};
+  v.innerHTML=(p?`<img class="ap" src="${p}">`:'')+`<div class="vt">${v.innerHTML}<div style="margin-top:8px"><button class="btn btn-sm" style="background:#25d366;color:#fff" onclick="wa('${id}',document.querySelector('#anOut .verdict .vt').innerText.slice(0,600))">💬 إرسال التحليل واتساب</button> <button class="btn btn-sm" style="background:#25d366;color:#fff" onclick="anWA('${id}')">📎 إرسال التقرير PDF</button></div></div>`};
+
+/* ===== مشاركة ملف PDF على واتساب ===== */
+async function shareFile(blob,name,s,msg){
+  const file=new File([blob],name,{type:'application/pdf'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],text:msg});return}catch(e){if(e.name==='AbortError')return}}
+  dl(URL.createObjectURL(blob),name);toast('نزل الملف — ابعته في المحادثة اللي هتفتح');
+  if(s&&waNum(s.phone))setTimeout(()=>window.open('https://wa.me/'+waNum(s.phone)+'?text='+encodeURIComponent(msg),'_blank'),700)}
+window.ctWA=async()=>{const s=S('ctStu'),nm=$('ctName').value||'student';toast('جاري تجهيز الشهادة...');
+  const {jsPDF}=window.jspdf,p=new jsPDF({unit:'mm',format:'a4',orientation:'l'});
+  p.addImage((await snap($('cert'),3)).toDataURL('image/jpeg',.92),'JPEG',0,0,297,210);
+  await shareFile(p.output('blob'),'Certificate-'+nm+'.pdf',s,'مبروك'+(s?' '+s.name:'')+'! دي شهادة التقدير بتاعتك من UC Math For Elites 🏆')};
+async function anBlob(s){const mode=document.querySelector('input[name=anMode]:checked').value,month=$('anMonth').value,per=mode==='all'?'كل الأيام':'شهر '+month,stage=$('pdfStage');
+  window.scrollTo(0,0);stage.style.display='block';Chart.defaults.font.family='Cairo';
+  try{await document.fonts.ready;stage.innerHTML=reportHTML(s,mode,month,per);await waitImgs(stage);await new Promise(r=>setTimeout(r,60));
+    const c=await html2canvas(stage,{scale:2,backgroundColor:'#ffffff',useCORS:true,scrollX:0,scrollY:0,windowHeight:stage.scrollHeight+50,ignoreElements:e=>e.tagName==='CANVAS'});
+    const {jsPDF}=window.jspdf,p=new jsPDF({orientation:'p',unit:'mm',format:'a4'});let w=210,h=c.height*210/c.width;if(h>297){w=210*297/h;h=297}
+    p.addImage(c.toDataURL('image/jpeg',.93),'JPEG',(210-w)/2,0,w,h);return p.output('blob')}
+  finally{stage.style.display='none';stage.innerHTML=''}}
+window.anWA=async id=>{const s=stuById(id);if(!s)return;toast('جاري تجهيز التقرير...');
+  try{await shareFile(await anBlob(s),'تقرير - '+s.name+'.pdf',s,'تقرير أداء '+s.name+' — UC Math For Elites')}catch(e){console.error(e);toast('حصل خطأ في تجهيز التقرير','err')}};
 
 /* ===== ربط التحديث ===== */
 const _ra2=refreshAll;refreshAll=function(){_ra2();fillSel();renderId();renderFile();renderCert()};
