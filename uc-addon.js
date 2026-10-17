@@ -47,6 +47,7 @@ document.head.insertAdjacentHTML('beforeend','<link href="https://fonts.googleap
 .cert .sg{width:100%;display:flex;justify-content:space-between;align-items:flex-end;font:500 11px Poppins;color:#7b8274}
 .cert .sg .b1{min-width:160px;border-top:1.5px solid #25301f;padding-top:5px}.cert .sg b{display:block;font-size:14px;color:#1b5e35;margin-top:2px}
 .cert .sg .l2{height:78px;object-fit:contain}
+.cert .ph3{position:absolute;top:30px;right:30px;width:100px;height:124px;border-radius:12px;border:3px solid #d4af37;background:#e4f3ea center/cover;box-shadow:0 6px 16px rgba(0,0,0,.3)}
 body{background:radial-gradient(circle at 12% 8%,#fff 0,transparent 38%),radial-gradient(circle at 92% 92%,#f6e7a8 0,transparent 42%),linear-gradient(160deg,#f7f3e6,#efe8cf);background-attachment:fixed}
 header{padding:20px 32px;background:linear-gradient(120deg,#0a2c18,#1b5e35 55%,#2a7a49);box-shadow:0 10px 36px rgba(10,44,24,.35)}
 header::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(45deg,rgba(255,255,255,.03) 0 12px,transparent 12px 24px);pointer-events:none}
@@ -192,14 +193,15 @@ window.flWA=()=>{const s=S('flStu');if(!s)return toast('اختار الطالب'
   wa(s.id,`أهلاً، ملخص أداء ${s.name} في UC Math For Elites:\nالحضور: ${st.rate}%\nمتوسط التقييم: ${st.aTot??'—'}${st.aTot!=null?'%':''}\n${verdictOf(st.rate,st.aTot,st.aAtt).note}`)};
 
 /* ===== الشهادة ===== */
-const certHTML=nm=>{const g=i=>esc($(i).value);return `<img class="wm" src="${LG()}" onerror="this.style.display='none'"><div class="fr"></div><div class="fr2"></div>
-  <div class="tg"></div><div class="tv"></div><div class="bg2"></div><div class="bv"></div>
+const certHTML=(nm,p)=>{const g=i=>esc($(i).value);return `<img class="wm" src="${LG()}" onerror="this.style.display='none'"><div class="fr"></div><div class="fr2"></div>
+  <svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" style="position:absolute;top:0;left:0"><defs><linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d4af37"/><stop offset="0.5" stop-color="#f6e7a8"/><stop offset="1" stop-color="#a8841a"/></linearGradient><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0a2c18"/><stop offset="0.7" stop-color="#1b5e35"/><stop offset="1" stop-color="#2a7a49"/></linearGradient></defs><polygon points="0,0 300,0 0,300" fill="url(#a)"/><polygon points="0,0 276,0 0,276" fill="url(#b)"/></svg><svg xmlns="http://www.w3.org/2000/svg" width="130" height="130" viewBox="0 0 130 130" style="position:absolute;bottom:0;right:0"><defs><linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a8841a"/><stop offset="0.5" stop-color="#f6e7a8"/><stop offset="1" stop-color="#d4af37"/></linearGradient><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2a7a49"/><stop offset="1" stop-color="#0a2c18"/></linearGradient></defs><polygon points="130,130 0,130 130,0" fill="url(#a)"/><polygon points="130,130 18,130 130,18" fill="url(#b)"/></svg>
   <img class="lg1" src="${LG()}" onerror="this.style.display='none'">
+  ${p?`<div class="ph3" style="background-image:url(${p})"></div>`:''}
   <div class="c"><div style="display:flex;flex-direction:column;align-items:center"><div class="br">UC MATH FOR ELITES</div><h1>${g('ctTitle')}</h1></div>
   <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div class="dv">✦</div><div class="pp">THIS CERTIFICATE IS PROUDLY PRESENTED TO</div><div class="n">${esc(nm)||'Student Name'}</div></div>
   <div class="t">${g('ctText')}</div>
   <div class="sg"><div class="b1">Date<b>${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</b></div><img class="l2" src="logo2.png" onerror="this.style.visibility='hidden'"><div class="b1">Instructor<b>Hussen El-Wakeel</b></div></div></div>`};
-function renderCert(){$('cert').innerHTML=certHTML($('ctName').value)}
+function renderCert(){const s=S('ctStu');$('cert').innerHTML=certHTML($('ctName').value,s&&ph(s))}
 const cbSel=new Set();
 const updCb=()=>$('cbN').textContent=[...cbSel].filter(id=>stuById(id)).length;
 function renderCb(){const a=$('cbAc').value,l=DB.students.filter(s=>!a||s.academy===a).sort(byName);
@@ -209,7 +211,7 @@ window.cbAll=on=>{const a=$('cbAc').value;DB.students.filter(s=>!a||s.academy===
 window.cbPDF=async()=>{const list=[...cbSel].map(stuById).filter(Boolean).sort(byName);if(!list.length)return toast('اختار طلاب الأول','err');
   const {jsPDF}=window.jspdf,p=new jsPDF({unit:'mm',format:'a4',orientation:'l'}),st=document.createElement('div');
   st.style.cssText='position:fixed;left:-9999px;top:0';document.body.appendChild(st);
-  try{for(let i=0;i<list.length;i++){toast('جاري تجهيز '+(i+1)+' / '+list.length);const d=document.createElement('div');d.className='cert';d.innerHTML=certHTML(fb(list[i]));st.appendChild(d);
+  try{for(let i=0;i<list.length;i++){toast('جاري تجهيز '+(i+1)+' / '+list.length);const d=document.createElement('div');d.className='cert';d.innerHTML=certHTML(fb(list[i]),ph(list[i]));st.appendChild(d);
     const c=await snap(d,3);d.remove();if(i)p.addPage();p.addImage(c.toDataURL('image/jpeg',.9),'JPEG',0,0,297,210)}
     p.save('Certificates.pdf');toast('تم تصدير '+list.length+' شهادة ✔')}finally{st.remove()}};
 $('ctStu').onchange=()=>{const s=S('ctStu');if(s)$('ctName').value=fb(s);renderCert()};
