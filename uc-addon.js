@@ -168,7 +168,7 @@ function renderId(){const s=S('idStu');if(!s){$('idFront').innerHTML='';$('idBac
   $('idBack').innerHTML=backHTML()}
 $('idStu').onchange=()=>{$('idEn').value='';renderId()};
 $('idEn').oninput=()=>{const s=S('idStu');if(s){s.en=$('idEn').value;save();renderId()}};
-const snap=async(el,sc)=>{await document.fonts.ready;return html2canvas(el,{scale:sc,backgroundColor:null,useCORS:true})};
+const snap=async(el,sc)=>{await document.fonts.ready;return html2canvas(el,{scale:sc,backgroundColor:null,useCORS:true,ignoreElements:e=>e.tagName==='CANVAS'})};
 const dl=(u,n)=>{const a=document.createElement('a');a.href=u;a.download=n;a.click()};
 window.idPNG=async()=>{const s=S('idStu');if(!s)return toast('اختار الطالب','err');dl((await snap($('idFront'),4)).toDataURL(),'ID-front-'+fb(s)+'.png');dl((await snap($('idBack'),4)).toDataURL(),'ID-back.png')};
 window.idPDF=async()=>{const s=S('idStu');if(!s)return toast('اختار الطالب','err');const {jsPDF}=window.jspdf,p=new jsPDF({unit:'mm',format:[85.6,54],orientation:'l'});
